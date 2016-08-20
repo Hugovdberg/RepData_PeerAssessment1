@@ -27,7 +27,6 @@ library(xtable) # v1.8-2
 # Plotting data
 library(ggplot2) # v2.1.0
 library(ggthemes) # v3.2.0
-# library(plotly) # v3.6.0
 ```
 
 ## Loading and preprocessing the data
@@ -54,7 +53,7 @@ activity <- read_csv('activity.csv',
                                       interval = col_integer()),
                      progress = FALSE)
 
-# Create variables
+# Create extra variables for later analyses
 activity %<>% 
     mutate(weekday = wday(date, label = TRUE, abbr = FALSE),
            weekend = factor(weekday %in% c("Saturday", "Sunday"),
@@ -73,34 +72,35 @@ be calculated.
 Next a histogram is made showing the distribution of the number of steps per 
 day (ignoring missing values).
 
-The ggplotly function is used to add some interactivity to the plot.
-By hovering the mouse over the bars the center value and count for that bin are
-shown.
 
 ```r
 daily_totals <- activity %>%
+    # Group the dataset on the date
     group_by(date) %>%
-    summarise(steps = sum(steps))
+    # Calculate the sum of the steps for each day
+    summarise(steps = sum(steps, na.rm = TRUE))
+
+# Calculate some summary statistics for the daily total steps
 mean_daily_total <- mean(daily_totals$steps, na.rm = TRUE)
 median_daily_total <- median(daily_totals$steps, na.rm = TRUE)
 
-g <- daily_totals %>% ggplot(aes(steps)) +
+daily_totals %>% ggplot(aes(x = steps)) +
     geom_histogram(fill = color.blue, binwidth = 500, na.rm = TRUE) +
     labs(title = "Daily totals of steps",
          x = "Number of steps",
          y = "Frequency") +
+    # Blue theme from ggthemes package
     theme_economist()
-# Add labels on hover
-# ggplotly(g)
-print(g)
 ```
 
 ![](PA1_template_files/figure-html/calc_totals-1.png)<!-- -->
 
 From the plot above it is clear that most days somewhere between 10000 and 
 15000 steps were taken by the subject.
-The statistics confirm this visual observation with a mean value of 
-**10766.19** steps and a median of **10765** steps.
+The statistics partially confirm this visual observation with a mean value of 
+**9354.23** steps and a median of **10395** steps.
+The mean is affected by a number of days with no recorded steps, and perhaps
+not representative of the daily activity.
 
 ## What is the average daily activity pattern?
 
@@ -114,29 +114,29 @@ This causes some strangely long segments in the plot.
 
 ```r
 five_minute_means <- activity %>%
+    # Group on the interval index
     group_by(interval) %>%
+    # Calculate the mean for each interval
     summarise(steps = mean(steps, na.rm = TRUE))
 
+# Find the maximum number of steps per five minutes, as well as the interval
 max_interval <- five_minute_means$interval[which.max(five_minute_means$steps)]
 max_steps <- max(five_minute_means$steps)
 
-g <- five_minute_means %>% 
-    ggplot(aes(x = interval, y = steps)) +
+five_minute_means %>% ggplot(aes(x = interval, y = steps)) +
     geom_line(color = color.blue) +
     labs(title = "Average number of steps per 5-minute interval",
          x = "Interval",
          y = "Mean number of steps") +
     theme_economist()
-# ggplotly(g)
-print(g)
 ```
 
 ![](PA1_template_files/figure-html/daily_pattern-1.png)<!-- -->
 
 From the plot it is visible the most steps are taken around half past eight in
 the morning.
-The statistics confirm this: at 835 the number of steps on average
-peaks to 206.17 steps per 5 minutes, or 
+The statistics confirm this: at **835** the number of steps on average
+peaks to **206.17** steps per 5 minutes, or 
 2474.04 steps per hour.
 
 ## Imputing missing values
@@ -154,13 +154,16 @@ missing.
 
 
 ```r
+# Calculate missing data pattern and convert to xtable
 xt <- xtable(md.pattern(activity))
+# Set an anonymous columnname to a meaningful name
 names(xt)[6] <- "Total missing"
+# Print as a html table
 print(xt, type = "html")
 ```
 
 <!-- html table generated in R 3.3.1 by xtable 1.8-2 package -->
-<!-- Sat Aug 20 21:18:11 2016 -->
+<!-- Sat Aug 20 21:54:17 2016 -->
 <table border=1>
 <tr> <th>  </th> <th> date </th> <th> interval </th> <th> weekday </th> <th> weekend </th> <th> steps </th> <th> Total missing </th>  </tr>
   <tr> <td align="right"> 15264 </td> <td align="right">   1 </td> <td align="right">   1 </td> <td align="right">   1 </td> <td align="right">   1 </td> <td align="right">   1 </td> <td align="right">   0 </td> </tr>
@@ -169,8 +172,8 @@ print(xt, type = "html")
    </table>
 
 From this table we can see that 15264 observations
-have no missing values, while 2304 observations
-lack a value for the `steps` variable.
+have no missing values, while **2304**
+observations lack a value for the `steps` variable.
 
 To impute the datatwo other functions from the `mice` package is used, called
 `mice` itself (MICE is an acronym for Multivariate Imputation by Chained
@@ -179,6 +182,14 @@ Equations) and `complete`.
 *Predictive Mean Matching*, and returns an object containing the original data
 and imputations separately.
 `complete` then merges those two to a dataset without missing data.
+
+*Predictive Mean Matching* is a method of imputation that retains the original,
+possibly skewed, distribution of the data. 
+It uses a combination of linear regression and nearest neighbours to impute the
+series with actual values from the available data.
+For more information see this
+[critique](http://statisticalhorizons.com/predictive-mean-matching) of
+predictive mean matching by Paul Alison on StatisticalHorizons.com.
 
 
 ```r
@@ -197,29 +208,28 @@ taken daily.
 
 
 ```r
-daily_totals <- imputed %>%
+daily_totals_imputed <- imputed %>%
     group_by(date) %>%
     summarise(steps = sum(steps))
-mean_daily_total_imputed <- mean(daily_totals$steps, na.rm = TRUE)
-median_daily_total_imputed <- median(daily_totals$steps, na.rm = TRUE)
 
-g <- daily_totals %>% ggplot(aes(steps)) +
-    geom_histogram(fill = color.blue, binwidth = 500, na.rm = TRUE) +
+mean_daily_total_imputed <- mean(daily_totals_imputed$steps)
+median_daily_total_imputed <- median(daily_totals_imputed$steps)
+
+daily_totals_imputed %>% ggplot(aes(x = steps)) +
+    geom_histogram(fill = color.blue, binwidth = 500) +
     labs(title = "Daily totals of steps after imputation",
          x = "Number of steps",
          y = "Frequency") +
     theme_economist()
-# Add labels on hover
-# ggplotly(g)
-print(g)
 ```
 
 ![](PA1_template_files/figure-html/calc_totals2-1.png)<!-- -->
 
 Visually the distribution looks similar to the non-imputed data.
-The median of the imputed steps variable is 11044 
-(compared to 10765 before), while the mean is
-1.0941705\times 10^{4} (compared to 1.0941705\times 10^{4} before).
+The median of the imputed steps variable is **11044** 
+(compared to 10395 before), while the mean is
+**10941.70** (compared to 
+9354.23 before).
 
 Both values have gone up slightly. 
 This is to be expected as the imputed values are all greater than or equal to
@@ -236,14 +246,18 @@ the data.
 
 
 ```r
-five_minute_means <- imputed %>%
+# Notice we changed the dataset to imputed instead of activity
+five_minute_means_imputed <- imputed %>%
+    # Add weekend as grouping variable
     group_by(weekend, interval) %>%
-    summarise(steps = mean(steps, na.rm = TRUE))
+    summarise(steps = mean(steps))
 
-max_interval <- five_minute_means$interval[which.max(five_minute_means$steps)]
-max_steps <- max(five_minute_means$steps)
+max_interval_imputed <- five_minute_means_imputed %>%
+    summarise(max_interval = interval[which.max(steps)],
+              max_steps = max(steps),
+              mean_steps = mean(steps))
 
-g <- five_minute_means %>% 
+five_minute_means_imputed %>% 
     ggplot(aes(x = interval, y = steps)) +
     geom_line(color = color.blue) +
     facet_grid(weekend ~ .) +
@@ -251,8 +265,6 @@ g <- five_minute_means %>%
          x = "Interval",
          y = "Mean number of steps") +
     theme_economist()
-# ggplotly(g)
-print(g)
 ```
 
 ![](PA1_template_files/figure-html/weekday_pattern-1.png)<!-- -->
@@ -263,3 +275,17 @@ During weekends activity starts later, and with a much less pronounced peak
 around 9 o'clock in the morning.
 Also during weekdays there is much less activity during the day compared to 
 weekends.
+
+This is all reflected in the calculated statistics:
+
+```r
+print(xtable(max_interval_imputed), type = "html")
+```
+
+<!-- html table generated in R 3.3.1 by xtable 1.8-2 package -->
+<!-- Sat Aug 20 21:54:34 2016 -->
+<table border=1>
+<tr> <th>  </th> <th> weekend </th> <th> max_interval </th> <th> max_steps </th> <th> mean_steps </th>  </tr>
+  <tr> <td align="right"> 1 </td> <td> weekend </td> <td align="right"> 1615 </td> <td align="right"> 164.25 </td> <td align="right"> 43.64 </td> </tr>
+  <tr> <td align="right"> 2 </td> <td> weekday </td> <td align="right"> 835 </td> <td align="right"> 204.69 </td> <td align="right"> 35.98 </td> </tr>
+   </table>
