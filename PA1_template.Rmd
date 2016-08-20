@@ -31,7 +31,7 @@ library(xtable) # v1.8-2
 # Plotting data
 library(ggplot2) # v2.1.0
 library(ggthemes) # v3.2.0
-library(plotly) # v3.6.0
+# library(plotly) # v3.6.0
 ```
 
 ## Loading and preprocessing the data
@@ -94,7 +94,8 @@ g <- daily_totals %>% ggplot(aes(steps)) +
          y = "Frequency") +
     theme_economist()
 # Add labels on hover
-ggplotly(g)
+# ggplotly(g)
+print(g)
 ```
 
 From the plot above it is clear that most days somewhere between 10000 and 
@@ -126,7 +127,8 @@ g <- five_minute_means %>%
          x = "Interval",
          y = "Mean number of steps") +
     theme_economist()
-ggplotly(g)
+# ggplotly(g)
+print(g)
 ```
 
 From the plot it is visible the most steps are taken around half past eight in
@@ -168,10 +170,13 @@ and imputations separately.
 
 ```{r impute}
 imputed <- activity %>%
+    # MICE can only handle numeric data for imputation
     mutate(date = as.numeric(date)) %>%
     # printFlag = FALSE prevents a long list of iterations showing
     mice(method = "pmm", printFlag = FALSE) %>%
-    complete
+    complete %>%
+    # Convert the numeric dates back to dates
+    mutate(date = as.Date(date, origin = '1970-1-1'))
 ```
 
 To check the imputation we again calculate the distribution of the total steps
@@ -191,7 +196,8 @@ g <- daily_totals %>% ggplot(aes(steps)) +
          y = "Frequency") +
     theme_economist()
 # Add labels on hover
-ggplotly(g)
+# ggplotly(g)
+print(g)
 ```
 
 Visually the distribution looks similar to the non-imputed data.
@@ -228,7 +234,8 @@ g <- five_minute_means %>%
          x = "Interval",
          y = "Mean number of steps") +
     theme_economist()
-ggplotly(g)
+# ggplotly(g)
+print(g)
 ```
 
 There appears to be quite some difference between the activities on weekdays
